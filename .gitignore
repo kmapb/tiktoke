@@ -1,1 +1,4 @@
-.venv/*
+.venv*
+lightning_logs/*
+*.pth
+*.ckpt
