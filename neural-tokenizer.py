@@ -48,7 +48,7 @@ class WikipediaByteDataset(Dataset):
             # Right pad tokens with stop token s.t. it shares length with bytes
             tokens = F.pad(tokens, (0, len(bytes_seq) -tokens.size(0)), value=self.tokenizer.eos_token_id)
             
-            print("Yo! here we are brochenko!", bytes_seq.shape, tokens.shape)
+            #print("Yo! here we are brochenko!", bytes_seq.shape, tokens.shape)
             return {
                 'bytes': bytes_seq,
                 'target_tokens': tokens,
@@ -93,8 +93,8 @@ class NeuralTokenizerModule(L.LightningModule):
         )
         
         # Track metrics
-        self.train_acc = torchmetrics.Accuracy(task='multiclass', num_classes=vocab_size)
-        self.val_acc = torchmetrics.Accuracy(task='multiclass', num_classes=vocab_size)
+        #self.train_acc = torchmetrics.Accuracy(task='multiclass', num_classes=vocab_size)
+        #self.val_acc = torchmetrics.Accuracy(task='multiclass', num_classes=vocab_size)
         self.token_predictor = nn.Linear(d_model, vocab_size)
     
     def forward(self, bytes_seq, bytes_embs, target_tokens=None, target_embs=None):
@@ -131,25 +131,19 @@ class NeuralTokenizerModule(L.LightningModule):
             target_embs
         )
     
-        return loss, embs, target_embs
+        return loss
         
 
     def training_step(self, batch, batch_idx):
         B, T = batch['bytes'].shape
-        loss, embs, target_embs = self._train_val_step(batch, batch_idx)
-        # Update metrics
-        self.train_acc(embs.view(-1, embs.size(-1)), target_embs.view(-1))
+        loss = self._train_val_step(batch, batch_idx)
         self.log('train_loss', loss, batch_size=B)
-        self.log('train_acc', self.train_acc, batch_size=B)
         return loss
     
     def validation_step(self, batch, batch_idx):
         B, T = batch['bytes'].shape
-        loss, embs, target_embs = self._train_val_step(batch, batch_idx)
-        # Update metrics
-        self.val_acc(embs.view(-1, embs.size(-1)), target_embs.view(-1))
+        loss = self._train_val_step(batch, batch_idx)
         self.log('val_loss', loss, batch_size=B)
-        self.log('val_acc', self.val_acc, batch_size=B)
         return loss
     
     def configure_optimizers(self):

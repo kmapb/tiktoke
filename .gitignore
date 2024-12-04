@@ -2,3 +2,5 @@
 lightning_logs/*
 *.pth
 *.ckpt
+data/*
+
