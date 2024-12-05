@@ -208,6 +208,7 @@ def train_tokenizer():
         accelerator='auto',
         devices=1,
         gradient_clip_val=1.0,
+        train_max_steps=10000,
         val_check_interval=1000,
         limit_val_batches=0.001,
         log_every_n_steps=100,
