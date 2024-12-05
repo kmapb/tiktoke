@@ -10,8 +10,10 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 import numpy as np
 
+MAX_SIZE=128
+
 class WikipediaByteDataset(Dataset):
-    def __init__(self, split='train', max_length=2048):
+    def __init__(self, split='train', max_length=MAX_SIZE):
         super().__init__()
         self.dataset = load_dataset(
             'wikimedia/wikipedia', '20231101.en', 
@@ -30,30 +32,31 @@ class WikipediaByteDataset(Dataset):
     def _prep_item(self, item):
             text = item['text']
             # Get byte truncated byte sequence
-            bytes_seq = torch.tensor([b for b in text.encode('utf-8')])
-            bytes_seq = bytes_seq[:self.max_length]
-                
+            bytes = text.encode('utf-8')[:self.max_length]
+            bytes_tensor = torch.tensor(list(bytes))
+            trunc_text = bytes.decode(encoding='utf-8', errors='replace')
+
             # Get BERT tokens
             tokens = self.tokenizer(
-                text, 
+                trunc_text,
                 truncation=True, 
-                max_length=self.max_length, 
+                max_length=len(bytes),
                 return_tensors='pt'
             )['input_ids'][0]
-            if len(bytes_seq) < tokens.size(0):
+            if len(bytes) < tokens.size(0):
                 print(text)
-                print(f"Bytes: {len(bytes_seq)}, Tokens: {tokens.size(0)}")
-                bytes_seq = F.pad(bytes_seq, (0, tokens.size(0) - len(bytes_seq)))
+                print(f"Bytes: {len(bytes)}, Tokens: {tokens.size(0)}")
+                bytes_tensor = F.pad(bytes_tensor, (0, tokens.size(0) - len(bytes)))
             else:
                 # Right pad tokens with stop token s.t. it shares length with bytes
-                tokens = F.pad(tokens, (0, len(bytes_seq) -tokens.size(0)), value=self.tokenizer.eos_token_id)
-            assert len(bytes_seq) == len(tokens)
+                tokens = F.pad(tokens, (0, len(bytes) -tokens.size(0)), value=self.tokenizer.pad_token_id)
+            assert bytes_tensor.shape == tokens.shape
             
             #print("Yo! here we are brochenko!", bytes_seq.shape, tokens.shape)
             return {
-                'bytes': bytes_seq,
+                'bytes': bytes_tensor,
                 'target_tokens': tokens,
-                'byte_length': len(bytes_seq),
+                'byte_length': len(bytes),
                 'token_length': len(tokens)
             }
 
@@ -67,7 +70,7 @@ class NeuralTokenizerModule(L.LightningModule):
         model_name='bert-base-uncased',
         nhead=4,
         num_layers=3,
-        max_output_length=2048,
+        max_output_length=MAX_SIZE,
         vocab_size=30522,  # BERT vocab size
         learning_rate=1e-4
     ):
@@ -99,16 +102,10 @@ class NeuralTokenizerModule(L.LightningModule):
         self.token_predictor = nn.Linear(d_model, vocab_size)
     
     def forward(self, bytes_seq, bytes_embs, target_tokens=None, target_embs=None):
-        if target_embs is not None:
-            tgt_mask = self.transformer.generate_square_subsequent_mask(target_tokens.size(1))
-        else:
-            tgt_mask = None
-        
         # Run through transformer
         output = self.transformer(
             bytes_embs,
             target_embs,
-            tgt_mask=tgt_mask
         )
         return output
     
@@ -179,7 +176,7 @@ def train_tokenizer():
     
     train_loader = DataLoader(
         train_dataset,
-        batch_size=32,
+        batch_size=8,
         collate_fn=collate_fn,
         num_workers=4,
         persistent_workers=True
@@ -202,7 +199,6 @@ def train_tokenizer():
         accelerator='auto',
         devices=1,
         gradient_clip_val=1.0,
-        accumulate_grad_batches=4,
         val_check_interval=1000,
         limit_val_batches=0.001,
         log_every_n_steps=100,
@@ -216,5 +212,6 @@ def train_tokenizer():
 
 if __name__ == "__main__":
     ds = WikipediaByteDataset()
-    print(ds[0])
+    for i in range(10):
+        print(ds[0])
     train_tokenizer()
