@@ -1,4 +1,5 @@
 import pytorch_lightning as L
+from pytorch_lightning.loggers import WandbLogger
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -42,11 +43,11 @@ class WikipediaByteDataset(Dataset):
             if len(bytes_seq) < tokens.size(0):
                 print(text)
                 print(f"Bytes: {len(bytes_seq)}, Tokens: {tokens.size(0)}")
-                import pdb; pdb.set_trace()
-            assert len(bytes_seq) >= tokens.size(0), "Bytes sequence longer than tokens"
-
-            # Right pad tokens with stop token s.t. it shares length with bytes
-            tokens = F.pad(tokens, (0, len(bytes_seq) -tokens.size(0)), value=self.tokenizer.eos_token_id)
+                bytes_seq = F.pad(bytes_seq, (0, tokens.size(0) - len(bytes_seq)))
+            else:
+                # Right pad tokens with stop token s.t. it shares length with bytes
+                tokens = F.pad(tokens, (0, len(bytes_seq) -tokens.size(0)), value=self.tokenizer.eos_token_id)
+            assert len(bytes_seq) == len(tokens)
             
             #print("Yo! here we are brochenko!", bytes_seq.shape, tokens.shape)
             return {
@@ -77,7 +78,7 @@ class NeuralTokenizerModule(L.LightningModule):
         self.target_embeddings = mdl.get_input_embeddings()
         d_model = self.target_embeddings.weight.shape[1]
         self.d_model = d_model
-        print("d_model", d_model)
+        #print("d_model", d_model)
 
         # Byte embeddings (0-255)
         self.byte_embeddings = nn.Embedding(256, d_model)
@@ -152,8 +153,8 @@ class NeuralTokenizerModule(L.LightningModule):
 # Training setup
 def collate_fn(batch):
     # Pad sequences in batch to same length
-    print(len(batch))
-    print(batch[0].keys())
+    #print(len(batch))
+    #print(batch[0].keys())
     max_byte_len = max(x['byte_length'] for x in batch)
     max_token_len = max(x['token_length'] for x in batch)
     
@@ -197,12 +198,17 @@ def train_tokenizer():
     
     # Training
     trainer = L.Trainer(
-        max_epochs=10,
+        max_epochs=1,
         accelerator='auto',
         devices=1,
         gradient_clip_val=1.0,
         accumulate_grad_batches=4,
-        val_check_interval=1000
+        val_check_interval=1000,
+        limit_val_batches=0.001,
+        log_every_n_steps=100,
+        limit_test_batches=0.01,
+        #overfit_batches=0.001,
+        logger=WandbLogger(project='neural-tokenizer')
     )
     
     trainer.fit(model, train_loader, val_loader)

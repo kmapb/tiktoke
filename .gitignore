@@ -3,4 +3,5 @@ lightning_logs/*
 *.pth
 *.ckpt
 data/*
+wandb/*
 
