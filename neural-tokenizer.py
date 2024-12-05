@@ -13,7 +13,7 @@ import numpy as np
 MAX_SIZE=512
 TXF_HEADS=4
 TXF_LAYERS=1
-MODEL='meta-llama/Llama-3.1-8B'
+MODEL='Qwen/Qwen2.5-Coder-0.5B-Instruct'
 
 class WikipediaByteDataset(Dataset):
     def __init__(self, split='train', max_length=MAX_SIZE):
