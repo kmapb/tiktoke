@@ -10,7 +10,10 @@ from datasets import load_dataset
 from transformers import AutoTokenizer
 import numpy as np
 
-MAX_SIZE=128
+MAX_SIZE=512
+TXF_HEADS=4
+TXF_LAYERS=1
+MODEL='meta-llama/Llama-3.1-8B'
 
 class WikipediaByteDataset(Dataset):
     def __init__(self, split='train', max_length=MAX_SIZE):
@@ -20,7 +23,7 @@ class WikipediaByteDataset(Dataset):
             split=split, streaming=False,
             trust_remote_code=True                 
         )
-        self.tokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+        self.tokenizer = AutoTokenizer.from_pretrained(MODEL)
         self.max_length = max_length
     
     def __len__(self):
@@ -67,9 +70,9 @@ class WikipediaByteDataset(Dataset):
 class NeuralTokenizerModule(L.LightningModule):
     def __init__(
         self,
-        model_name='bert-base-uncased',
-        nhead=4,
-        num_layers=3,
+        model_name=MODEL,
+        nhead=TXF_HEADS,
+        num_layers=TXF_LAYERS,
         max_output_length=MAX_SIZE,
         vocab_size=30522,  # BERT vocab size
         learning_rate=1e-4
@@ -79,6 +82,9 @@ class NeuralTokenizerModule(L.LightningModule):
         
         mdl = transformers.AutoModel.from_pretrained(model_name)
         self.target_embeddings = mdl.get_input_embeddings()
+        # Freeze the bert embeddings
+        for param in self.target_embeddings.parameters():
+            param.requires_grad = False
         d_model = self.target_embeddings.weight.shape[1]
         self.d_model = d_model
         #print("d_model", d_model)
@@ -95,11 +101,6 @@ class NeuralTokenizerModule(L.LightningModule):
             num_decoder_layers=num_layers,
             batch_first=True
         )
-        
-        # Track metrics
-        #self.train_acc = torchmetrics.Accuracy(task='multiclass', num_classes=vocab_size)
-        #self.val_acc = torchmetrics.Accuracy(task='multiclass', num_classes=vocab_size)
-        self.token_predictor = nn.Linear(d_model, vocab_size)
     
     def forward(self, bytes_seq, bytes_embs, target_tokens=None, target_embs=None):
         # Run through transformer
@@ -178,7 +179,7 @@ def train_tokenizer():
         train_dataset,
         batch_size=8,
         collate_fn=collate_fn,
-        num_workers=4,
+        num_workers=12,
         persistent_workers=True
     )
     
@@ -186,7 +187,7 @@ def train_tokenizer():
         val_dataset,
         batch_size=32,
         collate_fn=collate_fn,
-        num_workers=4,
+        num_workers=12,
         persistent_workers=True
     )
     
@@ -211,7 +212,4 @@ def train_tokenizer():
     return model
 
 if __name__ == "__main__":
-    ds = WikipediaByteDataset()
-    for i in range(10):
-        print(ds[0])
     train_tokenizer()
