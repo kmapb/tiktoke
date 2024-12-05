@@ -33,8 +33,8 @@ class CustomEmbeddingModel(nn.Module):
         )
         return outputs
 
-    def generate(self, s: str, **kwargs):
-        input_embs = self.embedding.raw_forward(s)
+    def generate(self, tokenizer, s: str, **kwargs):
+        input_embs = self.embedding.raw_forward(tokenizer, s)
         return self.model.generate(input_embs=input_embs, **kwargs)
 
 def decode_response(tokenizer, outputs):
@@ -48,9 +48,9 @@ def chat_session(model, tokenizer, device="cuda"):
         if user_input == "exit":
             break
         with torch.no_grad():
-            outputs = model.generate(user_input, generation_config=generation_args)
+            outputs = model.generate(tokenizer, user_input, generation_config=generation_args)
             response = decode_response(tokenizer, outputs)
-
+            print(f"Response: {response}")
 if __name__ == "__main__":
     embedder = NT.NeuralTokenizerModule.load_from_checkpoint(sys.argv[1])
     import pdb; pdb.set_trace()

@@ -102,13 +102,15 @@ class NeuralTokenizerModule(L.LightningModule):
             batch_first=True
         )
     
-    def raw_forward(self, s: str, device="cuda"):
+    def raw_forward(self, tokenizer, s: str, device="cuda"):
         bytes = s.encode('utf-8')
         bytes_tensor = torch.tensor(list(bytes)).to(device)
         bytes_embs = self.byte_embeddings(bytes_tensor).unsqueeze(0)
-        return self.forward(bytes_tensor, bytes_embs)
+        target_tokens = torch.tensor([tokenizer.bos_token_id]).to(device)
+        target_embs = self.target_embeddings(target_tokens).unsqueeze(0)
+        return self.forward(bytes_tensor, bytes_embs, target_tokens, target_embs)
     
-    def forward(self, bytes_seq, bytes_embs, target_tokens=None, target_embs=None):
+    def forward(self, bytes_seq, bytes_embs, target_embs=None):
         # Run through transformer
         output = self.transformer(
             bytes_embs,
@@ -119,18 +121,18 @@ class NeuralTokenizerModule(L.LightningModule):
     def _train_val_step(self, batch, batch_idx):
         B, T = batch['bytes'].shape
         bytes_seq = batch['bytes']
-        target_tokens = batch['target_tokens']
 
         # Embed bytes
         positions = torch.arange(bytes_seq.size(1), device=self.device)
         byte_embs = self.byte_embeddings(bytes_seq) + self.pos_encoder(positions)
         # Embed targets
-        target_embs = self.target_embeddings(target_tokens)
+        target_embs = self.target_embeddings(batch['target_tokens'])
+        phony_target_embs = torch.zeros_like(target_embs)
         assert target_embs.shape == (B, T, self.d_model)
         assert byte_embs.shape == (B, T, self.d_model)
         
         # Run through transformer
-        embs = self.forward(bytes_seq, byte_embs, target_tokens, target_embs)
+        embs = self.forward(bytes_seq, byte_embs, phony_target_embs)
         loss = F.mse_loss(
             embs,
             target_embs
