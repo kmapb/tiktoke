@@ -102,6 +102,12 @@ class NeuralTokenizerModule(L.LightningModule):
             batch_first=True
         )
     
+    def raw_forward(self, s: str, device="cuda"):
+        bytes = s.encode('utf-8')
+        bytes_tensor = torch.tensor(list(bytes)).to(device)
+        bytes_embs = self.byte_embeddings(bytes_tensor).unsqueeze(0)
+        return self.forward(bytes_tensor, bytes_embs)
+    
     def forward(self, bytes_seq, bytes_embs, target_tokens=None, target_embs=None):
         # Run through transformer
         output = self.transformer(
