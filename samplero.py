@@ -2,7 +2,7 @@ import sys
 import torch
 import neural_tokenizer as NT
 
-from transformers import GenerationConfig, AutoTokenizer, AutoModelForCausalLM
+from transformers import PreTrainedModel, GenerationConfig, AutoTokenizer, AutoConfig, AutoModelForCausalLM
 import torch.nn as nn
 
 class EmbedReplacer:
@@ -19,7 +19,7 @@ class CustomEmbeddingModel(nn.Module):
     transformer: AutoModelForCausalLM
     embedding: NT.NeuralTokenizerModule
     def __init__(self, model_name, embedding_model):
-        super().__init__()
+        super().__init__(config=AutoConfig.from_pretrained(model_name))
         self.transformer = AutoModelForCausalLM.from_pretrained(model_name)
         self.embedding = embedding_model
         

@@ -122,6 +122,7 @@ class NeuralTokenizerModule(L.LightningModule):
         output = self.transformer(
             bytes_embs,
             target_embs,
+            tgt_mask=None
         )
         return output
     
