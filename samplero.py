@@ -9,7 +9,7 @@ class CustomEmbeddingModel(nn.Module):
     transformer: AutoModelForCausalLM
     embedding: NT.NeuralTokenizerModule
     def __init__(self, model_name, embedding_model):
-        super().__init__(config=AutoConfig.from_pretrained(model_name))
+        super().__init__()
         self.transformer = AutoModelForCausalLM.from_pretrained(model_name)
         self.embedding = embedding_model
         
